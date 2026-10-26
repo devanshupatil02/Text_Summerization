@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+{% block title %}Summarize — AI Text Summarization{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- Hero -->
+  <div class="hero-strip">
+    <div>
+      <h1>📄 Text Summarization System</h1>
+      <p>Paste any long article and get an <strong>Extractive</strong> summary and an <strong>Abstractive</strong> summary using Facebook BART.</p>
+    </div>
+    <div class="hero-badges">
+      <span class="hero-badge">🧠 facebook/bart-large-cnn</span>
+      <span class="hero-badge">📊 ROUGE-1 · ROUGE-2 · ROUGE-L</span>
+      <span class="hero-badge">🎓 BTech AI &amp; DS Mini Project</span>
+    </div>
+  </div>
+
+  <!-- Load model banner (shown when BART not loaded) -->
+  {% if not bart_loaded %}
+  <div id="load-banner" style="
+    background:#0d1f38; border:1px solid #1f6feb; border-radius:10px;
+    padding:14px 20px; margin-bottom:20px; display:flex;
+    align-items:center; justify-content:space-between; gap:16px;">
+    <div>
+      <strong style="color:#58a6ff;">⚡ BART model not loaded</strong>
+      <span style="color:#8b949e; font-size:0.88rem; margin-left:10px;">
+        Click to load (~1.6 GB, downloads once then cached locally)
+      </span>
+    </div>
+    <button class="btn btn-secondary btn-sm" id="load-model-btn" onclick="loadModel()">
+      Load BART Model
+    </button>
+  </div>
+  {% endif %}
+
+  <div class="grid-2">
+
+    <!-- ── LEFT: Input ── -->
+    <div>
+      <div class="card">
+        <div class="card-title">📝 Input Article</div>
+
+        <!-- Sample picker -->
+        <div class="form-group">
+          <label class="form-label">Load a sample article</label>
+          <select id="sample-select" onchange="loadSample()">
+            <option value="">— paste your own text —</option>
+            <option value="0">Sample 1: Deep-Sea Fish Discovery</option>
+            <option value="1">Sample 2: Electric Vehicles Market</option>
+            <option value="2">Sample 3: AI in Healthcare</option>
+          </select>
+        </div>
+
+        <!-- Article input -->
+        <div class="form-group">
+          <label class="form-label">Article text</label>
+          <textarea id="article-input"
+            placeholder="Paste a news article or any long text here…"></textarea>
+          <div class="word-count-bar" id="word-count"></div>
+        </div>
+
+        <!-- Reference (optional) -->
+        <div class="form-group">
+          <label class="form-label">
+            📌 Reference summary
+            <span style="color:var(--text-muted); font-weight:400;"> (optional — enables ROUGE scores)</span>
+          </label>
+          <textarea id="reference-input" style="min-height:80px;"
+            placeholder="Paste a human-written reference summary to calculate ROUGE metrics…"></textarea>
+        </div>
+
+        <!-- Settings -->
+        <div class="sliders-row">
+          <div class="slider-group">
+            <label>Min tokens <span id="min-val">56</span></label>
+            <input type="range" id="min-len" min="20" max="100" value="56"
+              oninput="document.getElementById('min-val').textContent=this.value">
+          </div>
+          <div class="slider-group">
+            <label>Max tokens <span id="max-val">142</span></label>
+            <input type="range" id="max-len" min="80" max="300" value="142"
+              oninput="document.getElementById('max-val').textContent=this.value">
+          </div>
+          <div class="slider-group">
+            <label>Ext. sentences <span id="ext-val">3</span></label>
+            <input type="range" id="num-ext" min="1" max="7" value="3"
+              oninput="document.getElementById('ext-val').textContent=this.value">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="generate-btn" onclick="generate()">
+          🚀 Generate Summary
+        </button>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Results ── -->
+    <div>
+      <div class="card" style="position:relative;">
+        <div class="loading-overlay" id="loading-overlay">
+          <div class="spinner"></div>
+          <span id="loading-msg">Generating summaries…</span>
+        </div>
+
+        <div class="card-title">📊 Results</div>
+
+        <!-- Stats chips -->
+        <div class="chips" id="stats-chips" style="display:none;">
+          <span class="chip blue"  id="chip-orig">—</span>
+          <span class="chip green" id="chip-ext">—</span>
+          <span class="chip purple" id="chip-abs">—</span>
+          <span class="chip" id="chip-time">—</span>
+        </div>
+
+        <!-- Extractive -->
+        <div class="card-title" style="margin-top:14px;">🔍 Extractive Summary</div>
+        <div class="result-box extractive empty" id="ext-result">
+          <span>Extractive summary will appear here</span>
+          <button class="copy-btn" onclick="copyText(document.getElementById('ext-result').innerText)">Copy</button>
+        </div>
+
+        <!-- Abstractive -->
+        <div class="card-title" style="margin-top:14px;">🤖 BART Abstractive Summary</div>
+        <div class="result-box abstractive empty" id="abs-result">
+          <span>BART abstractive summary will appear here</span>
+          <button class="copy-btn" onclick="copyText(document.getElementById('abs-result').innerText)">Copy</button>
+        </div>
+
+        <!-- ROUGE section -->
+        <div id="rouge-section" style="display:none;">
+          <hr class="divider" />
+          <div class="card-title">📈 ROUGE Scores (F1)</div>
+          <div class="rouge-grid" id="rouge-grid"></div>
+          <canvas id="rouge-chart" width="520" height="220"
+            style="width:100%; border-radius:10px; margin-top:8px;"></canvas>
+        </div>
+
+        <!-- Download buttons -->
+        <div class="download-bar" id="download-bar" style="display:none;">
+          <button class="btn btn-secondary btn-sm" onclick="downloadSummaries()">
+            ⬇️ Download summaries (.txt)
+          </button>
+          <button class="btn btn-secondary btn-sm" id="dl-rouge-btn"
+            onclick="downloadRougeCSV()" style="display:none;">
+            ⬇️ ROUGE scores (.csv)
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div><!-- /grid-2 -->
+
+  <!-- ── Session History ── -->
+  <div id="history-section" style="display:none; margin-top:24px;">
+    <div class="history-panel">
+      <div class="card-title" style="margin-bottom:12px;">🕘 Session History</div>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Samples data (injected from Flask) ──
+const SAMPLES = {{ samples | tojson }};
+
+// ── State ──
+let lastResult = null;
+
+function loadSample() {
+  const idx = document.getElementById("sample-select").value;
+  if (idx === "") return;
+  document.getElementById("article-input").value = SAMPLES[parseInt(idx)] || "";
+  updateWordCount();
+}
+
+function updateWordCount() {
+  const text = document.getElementById("article-input").value.trim();
+  const wc   = text ? text.split(/\s+/).length : 0;
+  const el   = document.getElementById("word-count");
+  el.textContent = wc > 0 ? `${wc} words` : "";
+  el.style.color = wc >= 30 ? "var(--green)" : wc > 0 ? "var(--orange)" : "";
+}
+
+document.getElementById("article-input").addEventListener("input", updateWordCount);
+
+// ── Load BART model ──
+async function loadModel() {
+  const btn = document.getElementById("load-model-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  showToast("Loading BART model… this may take 1-2 minutes the first time.", "info");
+  try {
+    const r = await fetch("/api/load_model", { method: "POST" });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById("load-banner")?.remove();
+      document.getElementById("model-badge").classList.add("loaded");
+      document.getElementById("model-badge").querySelector(".dot").style.background = "var(--green)";
+      document.getElementById("model-badge").querySelector(".label").textContent = "BART Ready";
+      showToast("BART model loaded!", "success");
+    } else {
+      showToast("Failed to load BART: " + d.error, "error");
+      if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
+    }
+  } catch(e) {
+    showToast("Network error: " + e.message, "error");
+    if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
+  }
+}
+
+// ── Generate summaries ──
+async function generate() {
+  const text      = document.getElementById("article-input").value.trim();
+  const reference = document.getElementById("reference-input").value.trim();
+  const minLen    = parseInt(document.getElementById("min-len").value);
+  const maxLen    = parseInt(document.getElementById("max-len").value);
+  const numExt    = parseInt(document.getElementById("num-ext").value);
+
+  if (!text) { showToast("Please enter an article first.", "error"); return; }
+  if (text.split(/\s+/).length < 30) {
+    showToast("Article too short. Please enter at least 30 words.", "error");
+    return;
+  }
+
+  // Show loading
+  const overlay = document.getElementById("loading-overlay");
+  const genBtn  = document.getElementById("generate-btn");
+  overlay.classList.add("active");
+  genBtn.disabled = true;
+  document.getElementById("loading-msg").textContent = "Generating summaries… (BART may take 30-120s on CPU)";
+  startProgress();
+
+  // Reset results
+  setResultEmpty("ext-result", "Generating…");
+  setResultEmpty("abs-result", "Generating…");
+  document.getElementById("rouge-section").style.display = "none";
+  document.getElementById("stats-chips").style.display   = "none";
+  document.getElementById("download-bar").style.display  = "none";
+
+  try {
+    const resp = await fetch("/api/summarize", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ text, reference, min_len: minLen, max_len: maxLen, num_ext: numExt })
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok || data.error) {
+      showToast(data.error || "Something went wrong.", "error");
+      setResultEmpty("ext-result", "Error — see toast message");
+      setResultEmpty("abs-result", "Error — see toast message");
+      return;
+    }
+
+    lastResult = data;
+    renderResults(data, reference);
+    addToHistory(text, data.extractive, data.abstractive);
+    showToast("Done! Summary generated.", "success");
+
+  } catch(e) {
+    showToast("Request failed: " + e.message, "error");
+  } finally {
+    overlay.classList.remove("active");
+    genBtn.disabled = false;
+    finishProgress();
+  }
+}
+
+function setResultEmpty(id, msg) {
+  const el = document.getElementById(id);
+  el.classList.add("empty");
+  el.innerHTML = `<span>${msg}</span><button class="copy-btn" onclick="copyText(document.getElementById('${id}').innerText)">Copy</button>`;
+}
+
+function setResultText(id, text) {
+  const el = document.getElementById(id);
+  el.classList.remove("empty");
+  el.innerHTML = `${escapeHtml(text)}<button class="copy-btn" onclick="copyText(document.getElementById('${id}').innerText)">Copy</button>`;
+}
+
+function renderResults(data, reference) {
+  // Summaries
+  setResultText("ext-result", data.extractive);
+  setResultText("abs-result", data.abstractive);
+
+  // Stat chips
+  const wc = data.word_counts;
+  document.getElementById("chip-orig").textContent  = `📄 Original: ${wc.original} words`;
+  document.getElementById("chip-ext").textContent   = `🔍 Extractive: ${wc.extractive} words`;
+  document.getElementById("chip-abs").textContent   = `🤖 Abstractive: ${wc.abstractive} words`;
+  document.getElementById("chip-time").textContent  = `⏱️ ${data.elapsed}s`;
+  document.getElementById("stats-chips").style.display = "flex";
+
+  // Downloads visible
+  document.getElementById("download-bar").style.display = "flex";
+
+  // ROUGE
+  if (data.rouge && reference) {
+    renderRouge(data.rouge.extractive, data.rouge.abstractive);
+    document.getElementById("dl-rouge-btn").style.display = "inline-flex";
+  }
+}
+
+function renderRouge(ext, abs) {
+  const section = document.getElementById("rouge-section");
+  section.style.display = "block";
+
+  const metrics = [
+    { key: "rouge1", label: "ROUGE-1", desc: "Unigram overlap" },
+    { key: "rouge2", label: "ROUGE-2", desc: "Bigram overlap"  },
+    { key: "rougeL", label: "ROUGE-L", desc: "LCS similarity"  },
+  ];
+
+  const grid = document.getElementById("rouge-grid");
+  grid.innerHTML = metrics.map(m => `
+    <div class="rouge-card">
+      <div class="metric-label">${m.label}<br><small style="font-size:0.68rem;font-weight:400;">${m.desc}</small></div>
+      <div class="score-row">
+        <div class="score-item">
+          <div class="score-value ext">${ext[m.key].f1.toFixed(4)}</div>
+          <div class="score-sub">Extractive F1</div>
+        </div>
+        <div class="score-item">
+          <div class="score-value abs">${abs[m.key].f1.toFixed(4)}</div>
+          <div class="score-sub">Abstractive F1</div>
+        </div>
+      </div>
+    </div>
+  `).join("");
+
+  // Draw chart
+  setTimeout(() => drawRougeChart("rouge-chart", ext, abs), 50);
+}
+
+// ── Download helpers ──
+function downloadSummaries() {
+  if (!lastResult) return;
+  const text = (document.getElementById("article-input").value.trim());
+  const content = [
+    "ORIGINAL ARTICLE", "=".repeat(60), text, "",
+    "EXTRACTIVE SUMMARY", "=".repeat(60), lastResult.extractive, "",
+    "BART ABSTRACTIVE SUMMARY", "=".repeat(60), lastResult.abstractive, "",
+  ].join("\n");
+  downloadText("summaries.txt", content);
+}
+
+function downloadRougeCSV() {
+  if (!lastResult?.rouge) return;
+  const ext = lastResult.rouge.extractive;
+  const abs = lastResult.rouge.abstractive;
+  const rows = ["rouge1","rouge2","rougeL"].map(m => ({
+    Metric:           m.toUpperCase().replace("ROUGE","ROUGE-"),
+    "Ext Precision":  ext[m].precision,
+    "Ext Recall":     ext[m].recall,
+    "Ext F1":         ext[m].f1,
+    "Abs Precision":  abs[m].precision,
+    "Abs Recall":     abs[m].recall,
+    "Abs F1":         abs[m].f1,
+  }));
+  downloadCSV("rouge_scores.csv", rows);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── Session history (stored in memory, shown below results) ──
+const sessionHistory = [];
+
+function addToHistory(articleSnippet, extSum, absSum) {
+  const time = new Date().toLocaleTimeString();
+  sessionHistory.unshift({ time, articleSnippet, extSum, absSum });
+  if (sessionHistory.length > 5) sessionHistory.pop(); // keep last 5
+
+  const section = document.getElementById("history-section");
+  const list    = document.getElementById("history-list");
+  section.style.display = "block";
+
+  list.innerHTML = sessionHistory.map((h, i) => `
+    <div class="history-item">
+      <div>
+        <div style="color:var(--text); font-size:0.85rem; margin-bottom:4px;">
+          <strong>Article:</strong> ${escapeHtml(h.articleSnippet.substring(0,80))}…
+        </div>
+        <div style="color:var(--green); font-size:0.82rem;">
+          Ext: ${escapeHtml(h.extSum.substring(0,70))}…
+        </div>
+        <div style="color:var(--purple); font-size:0.82rem;">
+          Abs: ${escapeHtml(h.absSum.substring(0,70))}…
+        </div>
+      </div>
+      <span class="hist-time">${h.time}</span>
+    </div>`).join("");
+}
+</script>
+{% endblock %}

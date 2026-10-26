@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Dataset — AI Text Summarization{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="page-header">
+    <h1>🧪 CNN/DailyMail Dataset Evaluation</h1>
+    <p>Run BART and extractive summarization on real CNN/DailyMail articles and measure ROUGE scores.</p>
+  </div>
+
+  <!-- Info banner -->
+  <div style="background:#0d1f38; border:1px solid #1f6feb; border-radius:10px;
+    padding:16px 20px; margin-bottom:22px; font-size:0.88rem; line-height:1.8;">
+    <strong style="color:#58a6ff;">📥 About this dataset</strong><br>
+    <span style="color:#8b949e;">
+      CNN/DailyMail v3.0.0 contains ~300,000 news articles each paired with human-written
+      highlight summaries. It is the industry-standard benchmark for text summarization research.
+      On first run, Hugging Face will download ~1 GB to local cache — subsequent runs are instant.
+    </span>
+  </div>
+
+  <!-- Controls -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title">⚙️ Experiment Settings</div>
+    <div class="sliders-row">
+      <div class="slider-group">
+        <label>Articles to evaluate <span id="num-val">3</span></label>
+        <input type="range" id="num-samples" min="1" max="20" value="3"
+          oninput="document.getElementById('num-val').textContent=this.value">
+      </div>
+      <div class="slider-group">
+        <label>Max summary tokens <span id="max-val">142</span></label>
+        <input type="range" id="max-len" min="80" max="300" value="142"
+          oninput="document.getElementById('max-val').textContent=this.value">
+      </div>
+    </div>
+    <div style="margin-top:4px; font-size:0.8rem; color:var(--text-muted);">
+      ⏱️ Each article takes ~60s on CPU. 3 articles ≈ 3 min · 10 articles ≈ 10 min.
+    </div>
+
+    <button class="btn btn-primary" style="max-width:280px; margin-top:16px;"
+      id="run-btn" onclick="runExperiment()">
+      ▶️ Run Experiment
+    </button>
+  </div>
+
+  <!-- Progress area -->
+  <div id="progress-area" style="display:none; margin-bottom:20px;">
+    <div class="card">
+      <div class="card-title">⏳ Running…</div>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+        <div class="spinner"></div>
+        <span id="progress-msg" style="color:var(--text-muted); font-size:0.9rem;">
+          Loading dataset and BART model…
+        </span>
+      </div>
+      <div style="background:var(--surface2); border-radius:6px; height:8px; overflow:hidden;">
+        <div id="progress-fill" style="height:100%; width:0%;
+          background:linear-gradient(90deg,#1f6feb,#58a6ff);
+          transition:width 0.5s ease; border-radius:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results area -->
+  <div id="results-area" style="display:none;">
+
+    <!-- Average ROUGE summary cards -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title">📊 Average ROUGE Scores (F1)</div>
+      <div class="rouge-grid" id="avg-rouge-grid"></div>
+      <canvas id="avg-chart" width="900" height="260"
+        style="width:100%; border-radius:10px; margin-top:16px;"></canvas>
+    </div>
+
+    <!-- Per-article results table -->
+    <div class="card">
+      <div class="card-title">📋 Per-Article Results</div>
+      <div style="overflow-x:auto;">
+        <table class="dataset-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Article (preview)</th>
+              <th>Ext R1</th><th>Ext R2</th><th>Ext RL</th>
+              <th>Abs R1</th><th>Abs R2</th><th>Abs RL</th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="download-bar">
+        <button class="btn btn-secondary btn-sm" onclick="dlCSV()">
+          ⬇️ Download results (.csv)
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="dlSummaries()">
+          ⬇️ Download summaries (.txt)
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /results-area -->
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let lastResults = null;
+
+async function runExperiment() {
+  const numSamples = parseInt(document.getElementById("num-samples").value);
+  const maxLen     = parseInt(document.getElementById("max-len").value);
+
+  document.getElementById("run-btn").disabled = true;
+  document.getElementById("results-area").style.display  = "none";
+  document.getElementById("progress-area").style.display = "block";
+  document.getElementById("progress-msg").textContent = "Sending request to server…";
+  document.getElementById("progress-fill").style.width = "5%";
+  startProgress();
+
+  // Animate progress bar while waiting (we don't know exact progress server-side)
+  let pct = 5;
+  const ticker = setInterval(() => {
+    pct = pct < 90 ? pct + (90 - pct) * 0.02 : pct;
+    document.getElementById("progress-fill").style.width = pct + "%";
+    document.getElementById("progress-msg").textContent =
+      `Processing… (~${numSamples} articles, please wait)`;
+  }, 1000);
+
+  try {
+    const resp = await fetch("/api/dataset_sample", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ num_samples: numSamples, max_len: maxLen })
+    });
+    const data = await resp.json();
+
+    clearInterval(ticker);
+
+    if (!resp.ok || data.error) {
+      showToast(data.error || "Server error.", "error");
+      return;
+    }
+
+    lastResults = data;
+    document.getElementById("progress-fill").style.width = "100%";
+    document.getElementById("progress-msg").textContent = "Done!";
+    setTimeout(() => {
+      document.getElementById("progress-area").style.display = "none";
+    }, 800);
+
+    renderResults(data);
+    finishProgress();
+    showToast(`Done! Evaluated ${data.results.length} articles.`, "success");
+
+  } catch(e) {
+    clearInterval(ticker);
+    showToast("Request failed: " + e.message, "error");
+    document.getElementById("progress-area").style.display = "none";
+    finishProgress();
+  } finally {
+    document.getElementById("run-btn").disabled = false;
+  }
+}
+
+function renderResults(data) {
+  const { results, averages } = data;
+
+  // Average ROUGE cards
+  const metrics = [
+    { key1:"ext_rouge1", key2:"abs_rouge1", label:"ROUGE-1", desc:"Unigram" },
+    { key1:"ext_rouge2", key2:"abs_rouge2", label:"ROUGE-2", desc:"Bigram"  },
+    { key1:"ext_rougeL", key2:"abs_rougeL", label:"ROUGE-L", desc:"LCS"     },
+  ];
+
+  document.getElementById("avg-rouge-grid").innerHTML = metrics.map(m => `
+    <div class="rouge-card">
+      <div class="metric-label">${m.label}<br>
+        <small style="font-size:0.68rem;font-weight:400;">${m.desc} · avg over ${results.length} articles</small>
+      </div>
+      <div class="score-row">
+        <div class="score-item">
+          <div class="score-value ext">${averages[m.key1].toFixed(4)}</div>
+          <div class="score-sub">Extractive F1</div>
+        </div>
+        <div class="score-item">
+          <div class="score-value abs">${averages[m.key2].toFixed(4)}</div>
+          <div class="score-sub">Abstractive F1</div>
+        </div>
+      </div>
+    </div>`).join("");
+
+  // Chart
+  const extScores = {
+    rouge1: { f1: averages.ext_rouge1 },
+    rouge2: { f1: averages.ext_rouge2 },
+    rougeL: { f1: averages.ext_rougeL },
+  };
+  const absScores = {
+    rouge1: { f1: averages.abs_rouge1 },
+    rouge2: { f1: averages.abs_rouge2 },
+    rougeL: { f1: averages.abs_rougeL },
+  };
+  setTimeout(() => drawRougeChart("avg-chart", extScores, absScores), 50);
+
+  // Per-article table
+  const tbody = document.getElementById("results-tbody");
+  tbody.innerHTML = results.map(r => `
+    <tr>
+      <td class="num">${r.id}</td>
+      <td style="max-width:220px; color:var(--text-muted); font-size:0.78rem;">
+        ${escHtml(r.article.substring(0,100))}…
+      </td>
+      <td class="num good">${r.ext_rouge1.toFixed(3)}</td>
+      <td class="num good">${r.ext_rouge2.toFixed(3)}</td>
+      <td class="num good">${r.ext_rougeL.toFixed(3)}</td>
+      <td class="num" style="color:var(--purple);">${r.abs_rouge1.toFixed(3)}</td>
+      <td class="num" style="color:var(--purple);">${r.abs_rouge2.toFixed(3)}</td>
+      <td class="num" style="color:var(--purple);">${r.abs_rougeL.toFixed(3)}</td>
+    </tr>`).join("") + `
+    <tr style="background:var(--surface2); font-weight:700;">
+      <td colspan="2" style="padding:9px 12px; color:var(--text-muted);">AVERAGE (${results.length} articles)</td>
+      <td class="num good">${averages.ext_rouge1.toFixed(3)}</td>
+      <td class="num good">${averages.ext_rouge2.toFixed(3)}</td>
+      <td class="num good">${averages.ext_rougeL.toFixed(3)}</td>
+      <td class="num" style="color:var(--purple);">${averages.abs_rouge1.toFixed(3)}</td>
+      <td class="num" style="color:var(--purple);">${averages.abs_rouge2.toFixed(3)}</td>
+      <td class="num" style="color:var(--purple);">${averages.abs_rougeL.toFixed(3)}</td>
+    </tr>`;
+
+  document.getElementById("results-area").style.display = "block";
+  document.getElementById("results-area").scrollIntoView({ behavior: "smooth" });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function dlCSV() {
+  if (!lastResults) return;
+  const rows = lastResults.results.map(r => ({
+    "Article #":   r.id,
+    "Ext ROUGE-1": r.ext_rouge1, "Ext ROUGE-2": r.ext_rouge2, "Ext ROUGE-L": r.ext_rougeL,
+    "Abs ROUGE-1": r.abs_rouge1, "Abs ROUGE-2": r.abs_rouge2, "Abs ROUGE-L": r.abs_rougeL,
+    "Extractive":  r.extractive, "Abstractive": r.abstractive,
+  }));
+  downloadCSV("dataset_results.csv", rows);
+}
+
+function dlSummaries() {
+  if (!lastResults) return;
+  const lines = lastResults.results.map(r => [
+    `ARTICLE ${r.id}`, "=".repeat(50),
+    "Article:", r.article, "",
+    "Reference:", r.reference, "",
+    "Extractive:", r.extractive, "",
+    "Abstractive (BART):", r.abstractive, "",
+    `ROUGE — Ext: R1=${r.ext_rouge1.toFixed(4)} R2=${r.ext_rouge2.toFixed(4)} RL=${r.ext_rougeL.toFixed(4)}`,
+    `ROUGE — Abs: R1=${r.abs_rouge1.toFixed(4)} R2=${r.abs_rouge2.toFixed(4)} RL=${r.abs_rougeL.toFixed(4)}`,
+    "", ""
+  ].join("\n")).join("\n");
+  downloadText("dataset_summaries.txt", lines);
+}
+</script>
+{% endblock %}

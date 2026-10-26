@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+{% block title %}How It Works — AI Text Summarization{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="page-header">
+    <h1>📚 How It Works</h1>
+    <p>A complete explanation of every component — great for viva preparation.</p>
+  </div>
+
+  <!-- Overview cards -->
+  <div class="about-grid">
+    <div class="about-card">
+      <div class="icon">🔍</div>
+      <h3>Extractive Summarization</h3>
+      <p>Selects the most important sentences directly from the original document using word-frequency scoring. Fast, accurate, no model download needed.</p>
+    </div>
+    <div class="about-card">
+      <div class="icon">🤖</div>
+      <h3>BART Abstractive</h3>
+      <p>facebook/bart-large-cnn reads the article with its Encoder and generates new summary sentences with its Decoder — just like a human would.</p>
+    </div>
+    <div class="about-card">
+      <div class="icon">📊</div>
+      <h3>ROUGE Evaluation</h3>
+      <p>Measures word overlap between the generated summary and a human reference. ROUGE-1 (unigrams), ROUGE-2 (bigrams), ROUGE-L (LCS).</p>
+    </div>
+    <div class="about-card">
+      <div class="icon">📰</div>
+      <h3>CNN/DailyMail Dataset</h3>
+      <p>~300,000 news articles each with human-written highlights. The industry-standard benchmark for summarization research.</p>
+    </div>
+  </div>
+
+  <!-- Tab area -->
+  <div class="tab-container">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-extractive">🔍 Extractive</button>
+      <button class="tab-btn" data-tab="tab-bart">🤖 BART</button>
+      <button class="tab-btn" data-tab="tab-rouge">📊 ROUGE</button>
+      <button class="tab-btn" data-tab="tab-arch">⚙️ Architecture</button>
+      <button class="tab-btn" data-tab="tab-viva">📖 Viva Q&amp;A</button>
+    </div>
+
+    <!-- ── Extractive tab ── -->
+    <div class="tab-panel active" id="tab-extractive">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Word-Frequency Extractive Algorithm</h3>
+        <p style="color:var(--text-muted); margin-bottom:16px;">
+          Extractive summarization <strong>selects existing sentences</strong> — it does not generate new ones.
+          Think of it as highlighting the most important lines in a textbook.
+        </p>
+
+        <div class="code-block">Step 1 → Split article into sentences (NLTK sent_tokenize)
+Step 2 → Count word frequencies (skip stopwords like "the", "is", "at")
+Step 3 → Normalize: divide each count by the max count (range: 0–1)
+Step 4 → Score each sentence = sum(word_frequencies) ÷ sentence_length
+Step 5 → Sort sentences by score, pick top-N
+Step 6 → Return selected sentences in ORIGINAL ORDER</div>
+
+        <h4 style="margin:20px 0 10px;">Example</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div>
+            <div class="card-title">Original (5 sentences)</div>
+            <div class="result-box" style="font-size:0.83rem; min-height:auto;">
+              Scientists discovered a new fish. AI is changing healthcare.
+              The fish was found at 8000m depth. Drug discovery uses ML.
+              Privacy concerns remain.
+            </div>
+          </div>
+          <div>
+            <div class="card-title">Extractive (top 2)</div>
+            <div class="result-box extractive" style="font-size:0.83rem; min-height:auto;">
+              Scientists discovered a new fish. The fish was found at 8000m depth.
+            </div>
+          </div>
+        </div>
+
+        <h4 style="margin:20px 0 10px;">Advantages &amp; Disadvantages</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div>
+            <div class="card-title" style="color:var(--green);">✅ Advantages</div>
+            <ul style="color:var(--text-muted); font-size:0.88rem; padding-left:18px; line-height:2;">
+              <li>Instant — no model download</li>
+              <li>Always factually correct</li>
+              <li>Works offline</li>
+              <li>Easy to understand</li>
+            </ul>
+          </div>
+          <div>
+            <div class="card-title" style="color:var(--red);">❌ Disadvantages</div>
+            <ul style="color:var(--text-muted); font-size:0.88rem; padding-left:18px; line-height:2;">
+              <li>No semantic understanding</li>
+              <li>Can be choppy / disconnected</li>
+              <li>Cannot rephrase or paraphrase</li>
+              <li>Just keyword matching</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BART tab ── -->
+    <div class="tab-panel" id="tab-bart">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">BART — Bidirectional &amp; Auto-Regressive Transformer</h3>
+        <p style="color:var(--text-muted); margin-bottom:20px;">
+          BART was created by Facebook AI Research (2020) and fine-tuned specifically on CNN/DailyMail.
+          It has <strong>406 million parameters</strong> and a max input of <strong>1024 tokens</strong>.
+        </p>
+
+        <div class="code-block">INPUT ARTICLE
+    │
+    ▼  BartTokenizer
+[Token IDs: 7234, 5619, 3421 ...]   ← text → numbers
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│           BART ENCODER (12 layers)      │
+│                                         │
+│  Reads ALL tokens SIMULTANEOUSLY        │
+│  Self-Attention: every word attends to  │
+│  every other word (bidirectional)       │
+│                                         │
+│  Output: Contextual Representations     │
+│  (one rich vector per input token)      │
+└──────────────────┬──────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────┐
+│           BART DECODER (12 layers)      │
+│                                         │
+│  Generates ONE token at a time          │
+│                                         │
+│  Cross-Attention → looks at encoder     │
+│  Self-Attention  → looks at own tokens  │
+│  Beam Search (4) → explores 4 paths     │
+│                                         │
+│  Stops at &lt;EOS&gt; or max_length          │
+└──────────────────┬──────────────────────┘
+                   │
+                   ▼  BartTokenizer (decode)
+ABSTRACTIVE SUMMARY (new sentences)</div>
+
+        <h4 style="margin:20px 0 10px;">Key Concepts</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div style="background:var(--surface2); border-radius:10px; padding:16px; border:1px solid var(--border);">
+            <strong style="color:var(--blue);">Tokenization</strong>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
+              Model doesn't understand English. Tokenizer converts text to numbers.
+              "don't" → ["don", "'t"] (2 tokens). BART's limit is 1024 tokens, not 1024 words.
+            </p>
+          </div>
+          <div style="background:var(--surface2); border-radius:10px; padding:16px; border:1px solid var(--border);">
+            <strong style="color:var(--blue);">Attention</strong>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
+              Decides which input words to focus on. When generating "researchers",
+              the model attends most to "scientists" in the input.
+            </p>
+          </div>
+          <div style="background:var(--surface2); border-radius:10px; padding:16px; border:1px solid var(--border);">
+            <strong style="color:var(--orange);">Chunking (Long Documents)</strong>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
+              Articles &gt; 1024 tokens are split into sentence-level chunks.
+              Each chunk is summarized separately, then combined.
+              <em>Limitation: context is lost between chunks.</em>
+            </p>
+          </div>
+          <div style="background:var(--surface2); border-radius:10px; padding:16px; border:1px solid var(--border);">
+            <strong style="color:var(--red);">Hallucination</strong>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">
+              BART may occasionally generate a fact not in the original.
+              E.g., "Pacific Ocean" in article → "Atlantic Ocean" in summary.
+              Known limitation of all generative models.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ROUGE tab ── -->
+    <div class="tab-panel" id="tab-rouge">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">ROUGE — Recall-Oriented Understudy for Gisting Evaluation</h3>
+        <p style="color:var(--text-muted); margin-bottom:20px;">
+          Measures <strong>word overlap</strong> between a generated summary and a human reference.
+          It does <em>not</em> measure meaning, fluency, or factual accuracy.
+        </p>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:24px;">
+          <div style="background:var(--surface2); border-radius:10px; padding:16px; border:1px solid var(--border);">
+            <strong style="color:var(--green);">ROUGE-1</strong>
+            <p style="font-size:0.83rem; color:var(--text-muted); margin-top:6px; line-height:1.7;">
+              Counts matching <strong>single words</strong> (unigrams).<br>
+              Reference: "scientists discovered new fish"<br>
+              Generated: "researchers found new species"<br>
+              Match: "new" → ROUGE-1 = 1/4 = 0.25
+            </p>
+          </div>
+          <div style="background:var(--surface2); border-radius:10px; padding:16px; border:1px solid var(--border);">
+            <strong style="color:var(--purple);">ROUGE-2</strong>
+            <p style="font-size:0.83rem; color:var(--text-muted); margin-top:6px; line-height:1.7;">
+              Counts matching <strong>word pairs</strong> (bigrams). Stricter.<br>
+              Reference bigrams: ("scientists","discovered"), ("discovered","new")...<br>
+              Generated bigrams: ("researchers","found"), ("found","new")...<br>
+              Common: none → ROUGE-2 = 0
+            </p>
+          </div>
+          <div style="background:var(--surface2); border-radius:10px; padding:16px; border:1px solid var(--border);">
+            <strong style="color:var(--blue);">ROUGE-L</strong>
+            <p style="font-size:0.83rem; color:var(--text-muted); margin-top:6px; line-height:1.7;">
+              Based on <strong>Longest Common Subsequence</strong>.<br>
+              Words don't need to be consecutive.<br>
+              Captures sentence-level structure similarity.
+            </p>
+          </div>
+        </div>
+
+        <h4 style="margin-bottom:12px;">Precision, Recall, F1</h4>
+        <div class="code-block">Precision = Matching words ÷ Total words in GENERATED summary
+          "Of what I generated, how much was correct?"
+
+Recall    = Matching words ÷ Total words in REFERENCE summary
+          "Of what the reference had, how much did I include?"
+
+F1        = 2 × (Precision × Recall) ÷ (Precision + Recall)
+          Balanced harmonic mean — we REPORT F1 in papers</div>
+
+        <!-- Live ROUGE demo -->
+        <h4 style="margin:20px 0 10px;">🎮 Live ROUGE Calculator</h4>
+        <div class="grid-2" style="gap:14px;">
+          <div>
+            <label class="form-label">Generated summary</label>
+            <textarea id="demo-gen" style="min-height:80px;"
+              placeholder="Type or paste a generated summary…">Researchers found a new species in the Pacific Ocean at extreme depths.</textarea>
+          </div>
+          <div>
+            <label class="form-label">Reference summary</label>
+            <textarea id="demo-ref" style="min-height:80px;"
+              placeholder="Type or paste the reference summary…">Scientists discovered a new fish species in the Mariana Trench at extreme depths.</textarea>
+          </div>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:10px; width:200px;"
+          onclick="calcRougeDemo()">Calculate ROUGE</button>
+        <div id="rouge-demo-result" style="margin-top:14px; display:none;">
+          <div class="rouge-grid" id="rouge-demo-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Architecture tab ── -->
+    <div class="tab-panel" id="tab-arch">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">System Architecture</h3>
+        <div class="code-block">User Input (long article)
+        │
+        ▼
+  Preprocessing
+  (clean whitespace · validate length)
+        │
+   ┌────┴────┐
+   │         │
+   ▼         ▼
+EXTRACTIVE  ABSTRACTIVE (BART)
+BRANCH      BRANCH
+   │         │
+   │ 1.Split │ 1. BartTokenizer → token IDs
+   │   sents │ 2. Token count &gt; 1024? → chunk
+   │ 2.Word  │ 3. BART Encoder
+   │   freq  │    (bidirectional self-attention)
+   │ 3.Score │ 4. BART Decoder
+   │ 4.Top-N │    (cross-attention · autoregressive)
+   │         │ 5. Decode → text
+   ▼         ▼
+ Extractive  Abstractive
+ Summary     Summary
+   │         │
+   └────┬────┘
+        │
+        ▼
+  ROUGE Evaluation
+  vs Human Reference Summary
+  (ROUGE-1 · ROUGE-2 · ROUGE-L)
+        │
+        ▼
+  Comparison Table + Bar Chart</div>
+
+        <h4 style="margin:20px 0 10px;">Module Map</h4>
+        <table class="viva-table">
+          <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>src/summarizer.py</td><td>BART model loading, tokenization, abstractive summarization, chunking</td></tr>
+            <tr><td>src/extractive.py</td><td>Word-frequency extractive algorithm, sentence scoring</td></tr>
+            <tr><td>src/evaluate.py</td><td>ROUGE-1, ROUGE-2, ROUGE-L calculation (Precision / Recall / F1)</td></tr>
+            <tr><td>src/utils.py</td><td>Text cleaning, validation, file I/O, display helpers</td></tr>
+            <tr><td>src/dataset_test.py</td><td>CNN/DailyMail dataset loading and batch experiment</td></tr>
+            <tr><td>web/app.py</td><td>Flask server, API endpoints, route handlers</td></tr>
+            <tr><td>web/templates/</td><td>HTML pages (index, compare, about)</td></tr>
+            <tr><td>web/static/</td><td>CSS stylesheet and JavaScript (charts, AJAX, downloads)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Viva tab ── -->
+    <div class="tab-panel" id="tab-viva">
+      <div class="card">
+        <h3 style="margin-bottom:16px;">Quick Reference for Viva</h3>
+        <table class="viva-table">
+          <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+          <tbody>
+            <tr><td>What is BART?</td><td>Bidirectional and Auto-Regressive Transformer by Facebook AI (2020). Encoder reads input, Decoder generates summary.</td></tr>
+            <tr><td>What does the encoder do?</td><td>Reads ALL tokens simultaneously using bidirectional self-attention. Produces contextual representations.</td></tr>
+            <tr><td>What does the decoder do?</td><td>Generates the summary ONE token at a time using cross-attention (encoder) and self-attention (previous tokens).</td></tr>
+            <tr><td>What is tokenization?</td><td>Converts text → numbers (token IDs) that the model can process. "don't" = 2 tokens.</td></tr>
+            <tr><td>What is attention?</td><td>A mechanism that lets each word decide which other words to focus on. The core of Transformers.</td></tr>
+            <tr><td>Why BART not T5?</td><td>facebook/bart-large-cnn is fine-tuned specifically on CNN/DailyMail — perfect for our task. No extra training needed.</td></tr>
+            <tr><td>What is ROUGE-1?</td><td>Counts matching single words (unigrams) between generated and reference summary.</td></tr>
+            <tr><td>What is ROUGE-2?</td><td>Counts matching word pairs (bigrams). Stricter than ROUGE-1.</td></tr>
+            <tr><td>What is ROUGE-L?</td><td>Based on Longest Common Subsequence — non-consecutive word sequence matching.</td></tr>
+            <tr><td>What is F1?</td><td>Harmonic mean of Precision and Recall. F1 = 2×P×R/(P+R). We report F1.</td></tr>
+            <tr><td>What is hallucination?</td><td>Model generates fluent but factually wrong text. E.g., Pacific → Atlantic. Known LLM limitation.</td></tr>
+            <tr><td>Why chunking?</td><td>BART max input = 1024 tokens. Long articles must be split into chunks, summarized, then combined.</td></tr>
+            <tr><td>Limitation of ROUGE?</td><td>Measures word overlap only — not semantic meaning, readability, or factual accuracy.</td></tr>
+            <tr><td>Why pretrained model?</td><td>Training BART from scratch needs millions of articles and weeks on multiple GPUs. Pretrained = free + instant.</td></tr>
+            <tr><td>What is beam search?</td><td>Decoder explores top-4 token sequences at each step, picks the globally best summary. Avoids greedy mistakes.</td></tr>
+            <tr><td>What is CNN/DailyMail?</td><td>~300k news articles with human-written highlights. Industry-standard summarization benchmark (v3.0.0).</td></tr>
+            <tr><td>What is extractive?</td><td>Picks existing sentences — no new text generated. Fast, accurate, no model needed.</td></tr>
+            <tr><td>What is abstractive?</td><td>Generates NEW sentences by understanding meaning. Slower, may hallucinate, more human-like.</td></tr>
+            <tr><td>What is positional encoding?</td><td>Transformers process all tokens in parallel — positional encoding tells the model the position of each token.</td></tr>
+            <tr><td>What is fine-tuning?</td><td>Taking a pretrained model and training it a little more on a specific task/dataset. We only do inference.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /tab-container -->
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function calcRougeDemo() {
+  const gen = document.getElementById("demo-gen").value.trim();
+  const ref = document.getElementById("demo-ref").value.trim();
+  if (!gen || !ref) { showToast("Please fill both boxes.", "error"); return; }
+
+  try {
+    const resp = await fetch("/api/rouge_only", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ generated: gen, reference: ref })
+    });
+    const data = await resp.json();
+    if (data.error) { showToast(data.error, "error"); return; }
+
+    const metrics = [
+      { key:"rouge1", label:"ROUGE-1", desc:"Unigram" },
+      { key:"rouge2", label:"ROUGE-2", desc:"Bigram"  },
+      { key:"rougeL", label:"ROUGE-L", desc:"LCS"     },
+    ];
+
+    document.getElementById("rouge-demo-grid").innerHTML = metrics.map(m => `
+      <div class="rouge-card">
+        <div class="metric-label">${m.label}<br><small style="font-size:0.68rem;">${m.desc}</small></div>
+        <div class="score-row">
+          <div class="score-item">
+            <div class="score-value ext" style="font-size:1.1rem;">${data[m.key].precision.toFixed(4)}</div>
+            <div class="score-sub">Precision</div>
+          </div>
+          <div class="score-item">
+            <div class="score-value" style="color:var(--orange);font-size:1.1rem;">${data[m.key].recall.toFixed(4)}</div>
+            <div class="score-sub">Recall</div>
+          </div>
+          <div class="score-item">
+            <div class="score-value abs" style="font-size:1.1rem;">${data[m.key].f1.toFixed(4)}</div>
+            <div class="score-sub">F1</div>
+          </div>
+        </div>
+      </div>`).join("");
+
+    document.getElementById("rouge-demo-result").style.display = "block";
+    showToast("ROUGE calculated!", "success");
+  } catch(e) {
+    showToast("Error: " + e.message, "error");
+  }
+}
+</script>
+{% endblock %}

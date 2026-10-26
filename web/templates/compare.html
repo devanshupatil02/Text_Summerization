@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}Compare — AI Text Summarization{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="page-header">
+    <h1>⚖️ Compare Extractive vs Abstractive</h1>
+    <p>Side-by-side comparison with full ROUGE breakdown and chart.</p>
+  </div>
+
+  <!-- Input row -->
+  <div class="grid-2" style="margin-bottom:18px;">
+    <div class="card">
+      <div class="card-title">📝 Article</div>
+      <div class="form-group">
+        <select id="sample-select" onchange="loadSample()">
+          <option value="">— paste your own —</option>
+          <option value="0">Sample 1: Deep-Sea Fish Discovery</option>
+          <option value="1">Sample 2: Electric Vehicles Market</option>
+          <option value="2">Sample 3: AI in Healthcare</option>
+        </select>
+      </div>
+      <textarea id="article-input" style="min-height:180px;"
+        placeholder="Paste article…"></textarea>
+      <div class="word-count-bar" id="word-count"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📌 Reference Summary (required for ROUGE)</div>
+      <textarea id="reference-input" style="min-height:180px;"
+        placeholder="Paste the human-written reference summary here…"></textarea>
+
+      <div class="sliders-row" style="margin-top:14px;">
+        <div class="slider-group">
+          <label>Max tokens <span id="max-val">142</span></label>
+          <input type="range" id="max-len" min="80" max="300" value="142"
+            oninput="document.getElementById('max-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+          <label>Ext sentences <span id="ext-val">3</span></label>
+          <input type="range" id="num-ext" min="1" max="7" value="3"
+            oninput="document.getElementById('ext-val').textContent=this.value">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" style="max-width:320px; margin-bottom:24px;"
+    id="compare-btn" onclick="runCompare()">
+    ⚡ Run Comparison
+  </button>
+
+  <!-- Results -->
+  <div id="results-area" style="display:none;">
+
+    <!-- Side by side summaries -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title" style="color:var(--green);">🔍 Extractive Summary</div>
+        <div class="result-box extractive" id="ext-result"></div>
+        <div class="chips" style="margin-top:8px;">
+          <span class="chip green" id="ext-wc">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="color:var(--purple);">🤖 BART Abstractive Summary</div>
+        <div class="result-box abstractive" id="abs-result"></div>
+        <div class="chips" style="margin-top:8px;">
+          <span class="chip purple" id="abs-wc">—</span>
+          <span class="chip" id="time-chip">—</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <!-- ROUGE section -->
+    <div class="card">
+      <div class="card-title">📊 ROUGE Scores (F1)</div>
+      <div class="rouge-grid" id="rouge-grid"></div>
+
+      <canvas id="rouge-chart" width="900" height="260"
+        style="width:100%; border-radius:10px; margin-top:16px;"></canvas>
+
+      <!-- Full precision/recall/f1 table -->
+      <div style="margin-top:20px; overflow-x:auto;">
+        <table class="viva-table" id="rouge-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Extractive P</th><th>Extractive R</th><th>Extractive F1</th>
+              <th>Abstractive P</th><th>Abstractive R</th><th>Abstractive F1</th>
+            </tr>
+          </thead>
+          <tbody id="rouge-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Winner callout -->
+      <div id="winner-box" style="
+        margin-top:16px; padding:14px 18px;
+        background:var(--surface2); border-radius:10px;
+        border:1px solid var(--border); font-size:0.88rem; line-height:1.7;">
+      </div>
+
+      <div class="download-bar">
+        <button class="btn btn-secondary btn-sm" onclick="dlSummaries()">⬇️ Summaries (.txt)</button>
+        <button class="btn btn-secondary btn-sm" onclick="dlCSV()">⬇️ ROUGE table (.csv)</button>
+      </div>
+    </div>
+
+  </div><!-- /results-area -->
+
+  <!-- Spinner overlay -->
+  <div id="spinner-row" style="display:none; align-items:center; gap:12px;
+    color:var(--text-muted); font-size:0.9rem; margin-bottom:16px;">
+    <div class="spinner"></div>
+    <span id="spinner-msg">Running comparison…</span>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SAMPLES = {{ samples | tojson }};
+let lastData = null;
+
+document.getElementById("article-input").addEventListener("input", () => {
+  const wc = document.getElementById("article-input").value.trim().split(/\s+/).length;
+  const el = document.getElementById("word-count");
+  el.textContent = wc > 0 ? `${wc} words` : "";
+  el.style.color = wc >= 30 ? "var(--green)" : "var(--orange)";
+});
+
+function loadSample() {
+  const idx = document.getElementById("sample-select").value;
+  if (idx === "") return;
+  const article = SAMPLES[parseInt(idx)] || "";
+  document.getElementById("article-input").value = article;
+  // Auto-fill a simple reference from first 2 sentences
+  const sents = article.split(/(?<=[.!?])\s+/);
+  document.getElementById("reference-input").value = sents.slice(0,2).join(" ");
+  document.getElementById("article-input").dispatchEvent(new Event("input"));
+}
+
+async function runCompare() {
+  const text      = document.getElementById("article-input").value.trim();
+  const reference = document.getElementById("reference-input").value.trim();
+  const maxLen    = parseInt(document.getElementById("max-len").value);
+  const numExt    = parseInt(document.getElementById("num-ext").value);
+
+  if (!text)      { showToast("Please enter an article.", "error"); return; }
+  if (!reference) { showToast("Please enter a reference summary.", "error"); return; }
+  if (text.split(/\s+/).length < 30) {
+    showToast("Article too short. Need at least 30 words.", "error"); return;
+  }
+
+  document.getElementById("compare-btn").disabled = true;
+  document.getElementById("results-area").style.display = "none";
+  document.getElementById("spinner-row").style.display  = "flex";
+  document.getElementById("spinner-msg").textContent = "Running BART summarizer… (30-120s on CPU)";
+  startProgress();
+
+  try {
+    const resp = await fetch("/api/summarize", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text, reference,
+        min_len: 40, max_len: maxLen, num_ext: numExt
+      })
+    });
+    const data = await resp.json();
+
+    if (!resp.ok || data.error) {
+      showToast(data.error || "Error.", "error"); return;
+    }
+
+    lastData = { ...data, reference };
+    renderCompare(data);
+    showToast("Comparison complete!", "success");
+
+  } catch(e) {
+    showToast("Request failed: " + e.message, "error");
+  } finally {
+    document.getElementById("compare-btn").disabled = false;
+    document.getElementById("spinner-row").style.display = "none";
+    finishProgress();
+  }
+}
+
+function renderCompare(data) {
+  document.getElementById("ext-result").textContent = data.extractive;
+  document.getElementById("abs-result").textContent = data.abstractive;
+  document.getElementById("ext-wc").textContent = `${data.word_counts.extractive} words`;
+  document.getElementById("abs-wc").textContent = `${data.word_counts.abstractive} words`;
+  document.getElementById("time-chip").textContent = `⏱️ ${data.elapsed}s`;
+
+  if (data.rouge) {
+    renderRougeSection(data.rouge.extractive, data.rouge.abstractive);
+  }
+
+  document.getElementById("results-area").style.display = "block";
+  document.getElementById("results-area").scrollIntoView({ behavior: "smooth" });
+}
+
+function renderRougeSection(ext, abs) {
+  const metrics = [
+    { key:"rouge1", label:"ROUGE-1", desc:"Unigram overlap" },
+    { key:"rouge2", label:"ROUGE-2", desc:"Bigram overlap"  },
+    { key:"rougeL", label:"ROUGE-L", desc:"LCS similarity"  },
+  ];
+
+  // Cards
+  document.getElementById("rouge-grid").innerHTML = metrics.map(m => {
+    const winner = ext[m.key].f1 >= abs[m.key].f1 ? "Ext wins" : "Abs wins";
+    const wColor = ext[m.key].f1 >= abs[m.key].f1 ? "var(--green)" : "var(--purple)";
+    return `
+    <div class="rouge-card">
+      <div class="metric-label">${m.label}<br><small style="font-size:0.68rem;font-weight:400;">${m.desc}</small></div>
+      <div class="score-row">
+        <div class="score-item">
+          <div class="score-value ext">${ext[m.key].f1.toFixed(4)}</div>
+          <div class="score-sub">Extractive F1</div>
+        </div>
+        <div class="score-item">
+          <div class="score-value abs">${abs[m.key].f1.toFixed(4)}</div>
+          <div class="score-sub">Abstractive F1</div>
+        </div>
+      </div>
+      <div style="margin-top:8px; font-size:0.75rem; color:${wColor}; font-weight:600;">${winner}</div>
+    </div>`;
+  }).join("");
+
+  // Table
+  const tbody = document.getElementById("rouge-tbody");
+  tbody.innerHTML = metrics.map(m => `
+    <tr>
+      <td>${m.label}</td>
+      <td>${ext[m.key].precision.toFixed(4)}</td>
+      <td>${ext[m.key].recall.toFixed(4)}</td>
+      <td><strong style="color:var(--green);">${ext[m.key].f1.toFixed(4)}</strong></td>
+      <td>${abs[m.key].precision.toFixed(4)}</td>
+      <td>${abs[m.key].recall.toFixed(4)}</td>
+      <td><strong style="color:var(--purple);">${abs[m.key].f1.toFixed(4)}</strong></td>
+    </tr>`).join("");
+
+  // Winner box
+  const extAvg = (ext.rouge1.f1 + ext.rouge2.f1 + ext.rougeL.f1) / 3;
+  const absAvg = (abs.rouge1.f1 + abs.rouge2.f1 + abs.rougeL.f1) / 3;
+  document.getElementById("winner-box").innerHTML = `
+    <strong>💡 Interpretation</strong><br>
+    Average ROUGE F1 — Extractive: <strong style="color:var(--green);">${extAvg.toFixed(4)}</strong>
+    vs Abstractive: <strong style="color:var(--purple);">${absAvg.toFixed(4)}</strong><br>
+    <span style="color:var(--text-muted);">
+    Extractive scores higher on ROUGE because it copies sentences verbatim that may also
+    appear in the reference. BART generates new sentences — lower ROUGE but more readable and concise.
+    ROUGE measures word overlap, not meaning or quality.
+    </span>`;
+
+  // Chart
+  setTimeout(() => drawRougeChart("rouge-chart", ext, abs), 50);
+}
+
+function dlSummaries() {
+  if (!lastData) return;
+  const c = [
+    "ARTICLE\n" + "=".repeat(60),
+    document.getElementById("article-input").value.trim(),
+    "\nREFERENCE SUMMARY\n" + "=".repeat(60),
+    lastData.reference,
+    "\nEXTRACTIVE SUMMARY\n" + "=".repeat(60),
+    lastData.extractive,
+    "\nBART ABSTRACTIVE SUMMARY\n" + "=".repeat(60),
+    lastData.abstractive,
+  ].join("\n");
+  downloadText("comparison_summaries.txt", c);
+}
+
+function dlCSV() {
+  if (!lastData?.rouge) return;
+  const ext = lastData.rouge.extractive;
+  const abs = lastData.rouge.abstractive;
+  const rows = ["rouge1","rouge2","rougeL"].map(m => ({
+    Metric: m.toUpperCase().replace("ROUGE","ROUGE-"),
+    "Ext P": ext[m].precision, "Ext R": ext[m].recall, "Ext F1": ext[m].f1,
+    "Abs P": abs[m].precision, "Abs R": abs[m].recall, "Abs F1": abs[m].f1,
+  }));
+  downloadCSV("rouge_comparison.csv", rows);
+}
+</script>
+{% endblock %}

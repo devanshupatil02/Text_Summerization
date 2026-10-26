@@ -1,0 +1,47 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual Environment ──
+venv/
+env/
+.venv/
+ENV/
+
+# ── Hugging Face model cache (huge files, never commit) ──
+.cache/
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# ── Outputs (generated at runtime) ──
+outputs/summaries.txt
+outputs/results.csv
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── VS Code ──
+.vscode/
+
+# ── Jupyter ──
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Env files ──
+.env
+.env.*
+
+# ── Logs ──
+*.log

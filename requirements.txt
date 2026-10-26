@@ -1,0 +1,43 @@
+# ============================================================
+# requirements.txt
+# TEXT SUMMARIZATION USING TRANSFORMER MODELS
+# BTech AI & DS Mini Project
+# ============================================================
+# Install all at once:
+#   pip install -r requirements.txt --no-cache-dir
+#
+# OR if you get permission errors, install one group at a time:
+#   See TEAM_SETUP.md for full step-by-step instructions
+# ============================================================
+
+# Web Framework
+flask==3.1.3
+
+# PyTorch CPU version (no GPU required)
+# NOTE: Install this separately first:
+#   pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu --no-cache-dir
+torch==2.4.1
+
+# Hugging Face Transformers (provides BART model + tokenizer)
+transformers==4.44.2
+
+# Hugging Face Datasets (loads CNN/DailyMail dataset)
+datasets==2.21.0
+
+# ROUGE Score evaluation
+rouge-score==0.1.2
+
+# NLTK (sentence tokenization for extractive method)
+nltk==3.9.1
+
+# Data handling and CSV export
+pandas==2.2.3
+
+# Plotting (ROUGE bar charts)
+matplotlib==3.9.4
+
+# SentencePiece (required by some tokenizers)
+sentencepiece==0.2.0
+
+# Accelerate (optional speed-up for inference)
+accelerate==0.34.2
