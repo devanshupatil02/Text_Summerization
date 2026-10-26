@@ -1,43 +1,36 @@
 # ============================================================
 # requirements.txt
-# TEXT SUMMARIZATION USING TRANSFORMER MODELS
-# BTech AI & DS Mini Project
+# Text Summarization Using Transformer Models
 # ============================================================
-# Install all at once:
+# Local install:
 #   pip install -r requirements.txt --no-cache-dir
+#   pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu --no-cache-dir
 #
-# OR if you get permission errors, install one group at a time:
-#   See TEAM_SETUP.md for full step-by-step instructions
+# Streamlit Cloud installs this automatically.
 # ============================================================
 
-# Web Framework
+# Web frameworks
 flask==3.1.3
+streamlit==1.38.0
 
-# PyTorch CPU version (no GPU required)
-# NOTE: Install this separately first:
-#   pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu --no-cache-dir
-torch==2.4.1
-
-# Hugging Face Transformers (provides BART model + tokenizer)
+# Deep learning (Streamlit Cloud installs CPU torch automatically)
+torch
 transformers==4.44.2
 
-# Hugging Face Datasets (loads CNN/DailyMail dataset)
+# Dataset
 datasets==2.21.0
 
-# ROUGE Score evaluation
+# Evaluation
 rouge-score==0.1.2
 
-# NLTK (sentence tokenization for extractive method)
+# NLP
 nltk==3.9.1
-
-# Data handling and CSV export
-pandas==2.2.3
-
-# Plotting (ROUGE bar charts)
-matplotlib==3.9.4
-
-# SentencePiece (required by some tokenizers)
 sentencepiece==0.2.0
 
-# Accelerate (optional speed-up for inference)
+# Data
+pandas==2.2.3
+matplotlib==3.9.4
+
+# Misc
 accelerate==0.34.2
+gunicorn==22.0.0
