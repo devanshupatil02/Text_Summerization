@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>How It Works — AI Text Summarization</title>
+<style>
+:root{--bg:#0d1117;--surf:#161b22;--surf2:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--blue:#58a6ff;--blue-d:#1f6feb;
+  --green:#3fb950;--purple:#bc8cff;--orange:#d29922;--red:#f85149}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  background:var(--bg);color:var(--text);font-size:15px;line-height:1.6;min-height:100vh}
+.nav{background:var(--surf);border-bottom:1px solid var(--border);padding:0 28px;
+  height:58px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100}
+.nav-brand{font-weight:700;font-size:1rem}
+.nav-links a{color:var(--muted);padding:6px 14px;border-radius:6px;font-size:.88rem;
+  text-decoration:none;transition:.15s}
+.nav-links a:hover,.nav-links a.active{background:var(--surf2);color:var(--text)}
+.container{max-width:960px;margin:0 auto;padding:32px 20px 60px}
+h1{font-size:1.6rem;margin-bottom:6px}
+.sub{color:var(--muted);font-size:.9rem;margin-bottom:28px}
+.card{background:var(--surf);border:1px solid var(--border);border-radius:14px;
+  padding:22px;margin-bottom:18px}
+h3{font-size:1rem;margin-bottom:10px}
+p{color:var(--muted);font-size:.88rem;line-height:1.8;margin-bottom:10px}
+.code{background:var(--surf2);border:1px solid var(--border);border-radius:8px;
+  padding:14px;font-family:monospace;font-size:.8rem;color:#79c0ff;
+  white-space:pre;overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:var(--surf2);color:var(--muted);padding:9px 12px;text-align:left;
+  font-size:.76rem;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surf2)}
+td:first-child{color:var(--blue);font-weight:500;width:38%}
+footer{background:var(--surf);border-top:1px solid var(--border);padding:20px 28px;
+  text-align:center;font-size:.82rem;color:var(--muted)}
+footer a{color:var(--blue)}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-brand">🤖 AI Text Summarizer</div>
+  <div class="nav-links">
+    <a href="/">Summarize</a>
+    <a href="/about" class="active">How It Works</a>
+  </div>
+</nav>
+<div class="container">
+  <h1>📚 How It Works</h1>
+  <p class="sub">A plain-English explanation of every component — useful for viva preparation.</p>
+
+  <div class="card">
+    <h3>🔍 Extractive Summarization Algorithm</h3>
+    <p>Extractive summarization selects the most important sentences from the original document.
+       No new sentences are created — it works like highlighting key lines in a textbook.</p>
+    <div class="code">Step 1 → Split article into sentences (NLTK)
+Step 2 → Count word frequencies (ignore stopwords like "the", "is")
+Step 3 → Normalize: divide each count by max count (range 0–1)
+Step 4 → Score sentence = sum(word_frequencies) ÷ sentence_length
+Step 5 → Pick top-N sentences by score
+Step 6 → Return them in ORIGINAL ORDER</div>
+  </div>
+
+  <div class="card">
+    <h3>🤖 BART Abstractive Summarization (local version only)</h3>
+    <p>BART = Bidirectional and Auto-Regressive Transformer (Facebook AI, 2020).
+       It reads the article with its Encoder and generates new sentences with its Decoder —
+       just like a human would. The model facebook/bart-large-cnn has 406 million parameters
+       and requires ~4 GB RAM, so it runs locally only.</p>
+    <div class="code">Article Text
+  → BartTokenizer (text to token IDs)
+  → BART Encoder  (reads all tokens simultaneously, bidirectional)
+  → BART Decoder  (generates summary one token at a time)
+  → BartTokenizer (token IDs back to text)
+  → Abstractive Summary</div>
+  </div>
+
+  <div class="card">
+    <h3>📊 ROUGE Metrics</h3>
+    <p>ROUGE = Recall-Oriented Understudy for Gisting Evaluation.
+       Measures word overlap between generated summary and a human reference summary.</p>
+    <table>
+      <thead><tr><th>Metric</th><th>What it measures</th></tr></thead>
+      <tbody>
+        <tr><td>ROUGE-1</td><td>Overlap of single words (unigrams)</td></tr>
+        <tr><td>ROUGE-2</td><td>Overlap of word pairs (bigrams) — stricter</td></tr>
+        <tr><td>ROUGE-L</td><td>Longest Common Subsequence similarity</td></tr>
+        <tr><td>Precision</td><td>Of words I generated, how many were in the reference?</td></tr>
+        <tr><td>Recall</td><td>Of words in the reference, how many did I include?</td></tr>
+        <tr><td>F1</td><td>Balanced score = 2×P×R/(P+R) — this is what we report</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>📖 Viva Quick Reference</h3>
+    <table>
+      <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+      <tbody>
+        <tr><td>What is BART?</td><td>Bidirectional & Auto-Regressive Transformer by Facebook AI (2020). Encoder + Decoder architecture.</td></tr>
+        <tr><td>What is tokenization?</td><td>Converting text to numbers (token IDs). "don't" = 2 tokens. BART limit = 1024 tokens.</td></tr>
+        <tr><td>What is attention?</td><td>Mechanism that lets each word decide which other words to focus on. Core of Transformers.</td></tr>
+        <tr><td>What is ROUGE-1?</td><td>Counts matching single words between generated and reference summary.</td></tr>
+        <tr><td>What is ROUGE-2?</td><td>Counts matching word pairs. Stricter than ROUGE-1.</td></tr>
+        <tr><td>What is ROUGE-L?</td><td>Longest Common Subsequence — non-consecutive word matching.</td></tr>
+        <tr><td>What is hallucination?</td><td>Model generates fluent but factually wrong text. Known LLM limitation.</td></tr>
+        <tr><td>Why chunking?</td><td>BART max = 1024 tokens. Long articles must be split, summarized, combined.</td></tr>
+        <tr><td>Extractive vs Abstractive?</td><td>Extractive copies sentences. Abstractive generates new ones. Abstractive is more advanced.</td></tr>
+        <tr><td>Why pretrained?</td><td>Training from scratch needs millions of articles + weeks on GPUs. Pretrained = free + instant.</td></tr>
+        <tr><td>What is CNN/DailyMail?</td><td>~300k news articles with human-written summaries. Industry-standard benchmark.</td></tr>
+        <tr><td>Limitation of ROUGE?</td><td>Measures word overlap only — not meaning, fluency, or factual accuracy.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  🤖 AI Text Summarizer &nbsp;·&nbsp; BTech AI &amp; DS Mini Project &nbsp;·&nbsp;
+  <a href="https://github.com/devanshupatil02/Text_Summerization" target="_blank">GitHub ↗</a>
+</footer>
+</body>
+</html>
